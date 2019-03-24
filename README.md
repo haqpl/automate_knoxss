@@ -1,4 +1,4 @@
-## Quick start
+# Quick start
 
 1. Install firefox-developer
 
@@ -16,7 +16,7 @@ http://knoxss.me
 
 5. Edit hardcoded paths in script.
 
-# Important
+### Important
 6. You have to have cookies.pkl file with session cookies from knoxss.me:
 
 ```
