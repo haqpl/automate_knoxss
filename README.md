@@ -19,6 +19,7 @@ http://knoxss.me
 # Important
 6. You have to have cookies.pkl file with session cookies from knoxss.me:
 
+'''python
 import pickle
 import selenium.webdriver 
 
