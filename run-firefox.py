@@ -36,11 +36,10 @@ def find_urls(hrefs):
     links = driver.find_elements_by_xpath("//a[@href]")
 
     for elem in links:
-        #print(elem.get_attribute("href"))
-        if (driver.current_url.split("//")[-1].split("/")[0].split('?')[0] in elem.get_attribute("href")) & (elem.get_attribute("href") not in hrefs):
+        elem_url = elem.get_attribute("href") 
+        if (driver.current_url.split("//")[-1].split("/")[0].split('?')[0] in elem_url) & (elem_url not in hrefs) & (elem_url[-4:] not in ['.svg', '.jpg', '.zip', '.rar', '.gif', '.jpeg', '.png']):
             print("Found URL: {}".format(elem.get_attribute("href")))
             hrefs.append(elem.get_attribute("href"))
-    print("Done2...")
     return hrefs
 
 profile = FirefoxProfileWithWebExtensionSupport()
@@ -59,7 +58,7 @@ cookies = pickle.load(open("cookies2.pkl", "rb"))
 for cookie in cookies:
     driver.add_cookie(cookie)
 
-driver.get('https://fanduel.design/')
+driver.get('https://brutelogic.com.br/knoxss.html')
 
 print("Waiting... Enable Knoxss extension")
 time.sleep(30)
@@ -80,8 +79,13 @@ for link in hrefs:
         driver.execute_script("document.body.addEventListener(\"knoxss_status\", function(e){window.knoxss_status = e.detail}, false);")
         while True:
             text = driver.execute_script("return window.knoxss_status")
-            if (text is not None) & (str(text) not in "Nothing found"):
-                print('Got Knoxss event: {}'.format(text))
+            if text is not None:
+                if str(text) not in "Nothing found":
+                    print('Got Knoxss event: {}'.format(text))
+                elif str(text) not in "XSS":
+                    print('FOUND XSS: {}'.format(text))
+                else:
+                    print('Unknown error: {}'.format(text))
                 break
             else:
                 print("Waiting for Knoxss event: {}".format(str(text)))
