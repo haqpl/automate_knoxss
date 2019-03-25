@@ -8,6 +8,7 @@ from random import randint
 from selenium import webdriver
 from selenium.webdriver.firefox.firefox_profile import AddonFormatError, FirefoxProfile
 
+
 class FirefoxProfileWithWebExtensionSupport(webdriver.FirefoxProfile):
     def _addon_details(self, addon_path):
         try:
@@ -43,7 +44,8 @@ def find_urls(hrefs):
     return hrefs
 
 profile = FirefoxProfileWithWebExtensionSupport()
-profile.add_extension('knoxss_ok')
+profile.set_preference("devtools.console.stdout.content", True)
+profile.add_extension('knoxss')
 
 
 firefox_binary = '/home/mp/firefox/firefox'  
@@ -53,27 +55,44 @@ driver.maximize_window()
 driver.get('https://knoxss.me')
 
 
-cookies = pickle.load(open("cookies.pkl", "rb"))
+cookies = pickle.load(open("cookies2.pkl", "rb"))
 for cookie in cookies:
     driver.add_cookie(cookie)
 
-driver.get('https://www.grammarly.com/')
+driver.get('https://fanduel.design/')
 
-print("Waiting...")
+print("Waiting... Enable Knoxss extension")
 time.sleep(30)
 print("Done...")
 
 hrefs = []
 hrefs = find_urls(hrefs)
+clicked = 0
+text = ""
 
 for link in hrefs:
+    elapsed_time = 0
     try:
         print("Clicking: {}".format(link))
         driver.get(link)
+        clicked+=1
         hrefs = find_urls(hrefs)
-        time.sleep(randint(10, 20))
+        driver.execute_script("document.body.addEventListener(\"knoxss_status\", function(e){window.knoxss_status = e.detail}, false);")
+        while True:
+            text = driver.execute_script("return window.knoxss_status")
+            if (text is not None) & (str(text) not in "Nothing found"):
+                print('Got Knoxss event: {}'.format(text))
+                break
+            else:
+                print("Waiting for Knoxss event: {}".format(str(text)))
+                elapsed_time += 0.5
+                time.sleep(0.5)
+        progress = len(hrefs)*elapsed_time
+        print("Remaining: {} minutes, clicked/all_urls: {}/{}".format(progress/60, clicked, len(hrefs)))
     except:
         pass
 
 r = input()
 driver.quit()
+
+
