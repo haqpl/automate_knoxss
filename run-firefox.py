@@ -5,6 +5,7 @@ import sys
 import getopt
 import signal
 import os
+import queue
 
 from urllib.parse import urlparse
 from selenium import webdriver
@@ -41,8 +42,14 @@ class FirefoxProfileWithWebExtensionSupport(webdriver.FirefoxProfile):
             except (IOError, KeyError) as e:
                 raise AddonFormatError(str(e), sys.exc_info()[2])
 
+class CheckableQueue(queue.Queue):
+    def __contains__(self, item):
+        with self.mutex:
+            return item in self.queue
+    def __len__(self):
+        return self.qsize()
 
-def page_has_loaded(driver):
+def page_has_loaded():
     print("[+] Checking if {} page has loaded.".format(driver.current_url))
     page_state = driver.execute_script('return document.readyState;')
     return page_state == 'complete'
@@ -58,17 +65,29 @@ def find_urls(driver, hrefs):
             hrefs.append(elem.get_attribute("href"))
     return hrefs
 
+def find_hrefs(hrefs):
+    global driver
+    links = driver.find_elements_by_xpath("//a[@href]")
+    for elem in links:
+        elem_url = elem.get_attribute("href")
+        current_url = urlparse(driver.current_url)
+        if (current_url.netloc in elem_url) and (elem_url not in hrefs) and (elem_url[-4:] not in bad_extensions):
+            print("[+] Found new URL: {}".format(elem.get_attribute("href")))
+            hrefs.put(elem.get_attribute("href"))
+    return hrefs
+
 
 def main():
     global driver
     time_to_wait = 90   #timeout for knoxss event
     clicked = 0         
-    text = ""
+    knoxss_status = None
     cookies = False
     url = False
     firefox_binary = '/home/mp/firefox/firefox'
     addon = False
     active = False
+    elapsed_time = 0
 
     if not len(sys.argv[1:]):
         usage()
@@ -123,44 +142,52 @@ def main():
 
     print("[+] Navigating to {}".format(url))
     driver.get(url)
-    #driver.execute_script("document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status = e.detail}, false);")
+    driver.execute_script("window.knoxss_status = []; document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status.push(e.detail); e.stopPropagation();}, true);")
     
-    hrefs = []
-    hrefs = find_urls(driver, hrefs)
-    hrefs.insert(0, url)
+    web_hrefs = CheckableQueue()
+    web_hrefs = find_hrefs(web_hrefs)
 
     try:
-        for link in hrefs:
-            elapsed_time = 0
-            hrefs = find_urls(driver, hrefs)
-            driver.execute_script("document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status = e.detail}, false);")
-            while True:
-                text = driver.execute_script("return window.knoxss_status")
-                if text is not None:
-                    if "Nothing found" in str(text) :
-                        print('[+] Nothing found: {}'.format(text))
-                        break
-                    elif "XSS" in str(text):
-                        print('[+] FOUND XSS: {}'.format(text))
-                        break
-                    elif "ACTIVATED" in str(text):
-                        if active:
-                            break
-                        print('[+] KNOXSS on/off: {}'.format(text))
-                        active = True
-                    else:
-                        raise RuntimeError('Uknown error: %s Aborting!' % str(text))
+        while not web_hrefs.empty():
+            knoxss_status = driver.execute_script("return window.knoxss_status.pop()")
+            if knoxss_status is not None:
+                elapsed_time = 0
+                if "Nothing found" in str(knoxss_status) :
+                    print('[+] Nothing found: {}'.format(knoxss_status))
+                elif "XSS" in str(knoxss_status):
+                    print('[+] FOUND XSS: {}'.format(knoxss_status))
+                elif "ACTIVATED" in str(knoxss_status):
+                    print('[+] KNOXSS activated: {}'.format(knoxss_status))
+                    knoxss_status = None
+                    active = True
+                    continue
+                elif "deactivated" in str(knoxss_status):
+                    print('[+] KNOXSS deactivated: {}'.format(knoxss_status))
+                    knoxss_status = None
+                    active = False
+                    continue
                 else:
+                    raise RuntimeError('Uknown error: %s Aborting!' % str(knoxss_status))
+            else:
+                if active:
                     print("[+] Waiting for KNOXSS event, timeout: {}/{}".format(str(elapsed_time), str(time_to_wait)))
-                    elapsed_time += 0.5
-                    time.sleep(0.5)
-                    if elapsed_time > time_to_wait:
-                        raise RuntimeError('There is no event from KNOXSS. Check Cookies status. Aborting!')
-            print("[+] Navigating: {}".format(link))
-            driver.get(link)
-            clicked += 1
-            progress = len(hrefs)*elapsed_time
-            print("[+] Remaining: {} minutes, clicked/all_urls: {}/{}".format(progress / 60, clicked, len(hrefs)))
+                else:
+                    print("[+] Enable KNOXSS add-on, timeout: {}/{}".format(str(elapsed_time), str(time_to_wait)))
+                elapsed_time += 0.5
+                time.sleep(0.5)
+                if elapsed_time > time_to_wait:
+                    raise RuntimeError('There is no event from KNOXSS. Check Cookies status or adjust timeout. Aborting!')
+            if active and knoxss_status is not None:
+                link = web_hrefs.get()
+                print("[+] Navigating: {}".format(link))
+                driver.get(link)
+                clicked += 1
+                print(elapsed_time)
+                if page_has_loaded():
+                    driver.execute_script("window.knoxss_status = []; document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status.push(e.detail);}, false);")
+                    web_hrefs = find_hrefs(web_hrefs)
+                progress = len(web_hrefs)*elapsed_time
+                print("[+] Remaining: {} minutes, clicked/all_urls: {}/{}".format(progress / 60, clicked, len(web_hrefs)))
     except RuntimeError as err:
         sys.stderr.write('[-] ERROR spidering: %s' % str(err)) 
         driver.quit()
