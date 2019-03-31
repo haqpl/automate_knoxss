@@ -62,16 +62,17 @@ def find_urls(driver, hrefs):
         current_url = urlparse(driver.current_url)
         if (current_url.netloc in elem_url) and (elem_url not in hrefs) and (elem_url[-4:] not in bad_extensions):
             print("[+] Found new URL: {}".format(elem.get_attribute("href")))
-            hrefs.append(elem.get_attribute("href"))
+            hrefs.append(elem_url)
     return hrefs
 
 def find_hrefs(hrefs):
     global driver
+    global visited_urls
     links = driver.find_elements_by_xpath("//a[@href]")
     for elem in links:
         elem_url = elem.get_attribute("href")
         current_url = urlparse(driver.current_url)
-        if (current_url.netloc in elem_url) and (elem_url not in hrefs) and (elem_url[-4:] not in bad_extensions):
+        if (current_url.scheme+"://"+current_url.netloc in elem_url) and (elem_url not in hrefs) and (elem_url[-4:] not in bad_extensions) and (elem_url not in visited_urls):
             print("[+] Found new URL: {}".format(elem.get_attribute("href")))
             hrefs.put(elem.get_attribute("href"))
     return hrefs
@@ -79,8 +80,9 @@ def find_hrefs(hrefs):
 
 def main():
     global driver
+    global visited_urls
     time_to_wait = 90   #timeout for knoxss event
-    clicked = 0         
+    visited = 0         
     knoxss_status = None
     cookies = False
     url = False
@@ -88,6 +90,7 @@ def main():
     addon = False
     active = False
     elapsed_time = 0
+    visited_urls = []
 
     if not len(sys.argv[1:]):
         usage()
@@ -174,6 +177,8 @@ def main():
                 else:
                     print("[+] Enable KNOXSS add-on, timeout: {}/{}".format(str(elapsed_time), str(time_to_wait)))
                 elapsed_time += 0.5
+                if elapsed_time > 0:
+                    spent_time = elapsed_time
                 time.sleep(0.5)
                 if elapsed_time > time_to_wait:
                     raise RuntimeError('There is no event from KNOXSS. Check Cookies status or adjust timeout. Aborting!')
@@ -181,13 +186,13 @@ def main():
                 link = web_hrefs.get()
                 print("[+] Navigating: {}".format(link))
                 driver.get(link)
-                clicked += 1
-                print(elapsed_time)
+                visited_urls.append(link)
+                visited += 1
                 if page_has_loaded():
                     driver.execute_script("window.knoxss_status = []; document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status.push(e.detail);}, false);")
                     web_hrefs = find_hrefs(web_hrefs)
-                progress = len(web_hrefs)*elapsed_time
-                print("[+] Remaining: {} minutes, clicked/all_urls: {}/{}".format(progress / 60, clicked, len(web_hrefs)))
+                progress = len(web_hrefs)*spent_time
+                print("[+] Remaining: {} minutes, visited/all_urls: {}/{}".format(progress / 60, visited, len(web_hrefs)+len(visited_urls)))
     except RuntimeError as err:
         sys.stderr.write('[-] ERROR spidering: %s' % str(err)) 
         driver.quit()
