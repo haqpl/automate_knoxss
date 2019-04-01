@@ -10,6 +10,7 @@ import queue
 from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.firefox.firefox_profile import AddonFormatError, FirefoxProfile
+from http.cookies import SimpleCookie
 
 bad_extensions = ['.svg', '.jpg', '.zip', '.rar', '.gif', '.jpeg', '.png', '.xml']
 
@@ -54,6 +55,10 @@ def page_has_loaded():
     page_state = driver.execute_script('return document.readyState;')
     return page_state == 'complete'
 
+def parse_cookies(cookies):
+    cookie = SimpleCookie()
+    cookie.load(cookies)
+    return {key: morsel.value for key, morsel in cookie.items()}
 
 def find_hrefs(hrefs):
     global driver
@@ -123,14 +128,12 @@ def main():
         sys.stderr.write('[-] ERROR running Webdriver: %s' % str(err))
         sys.exit()
 
-    driver.get('https://knoxss.me')
-    
+    print("[+] Loading Cookies")
     try:
-        cookies = pickle.load(open(cookies, "rb"))
-        for cookie in cookies:
-            driver.add_cookie(cookie)
+        driver.get('https://knoxss.me')
+        driver.add_cookie(parse_cookies(cookies))
     except Exception as err:
-        sys.stderr.write('[-] ERROR loading cookies: %s' % str(err))
+        sys.stderr.write('[-] ERROR loading Cookies, check Internet connection or Cookies format: %s' % str(err))
         sys.exit()
 
     print("[+] Navigating to {}".format(url))
