@@ -22,7 +22,7 @@ def usage():
 
 def signal_handler(sig, frame):
     global driver
-    print('[+] Ctrl+C, cleaning up!')
+    print('[+] Cleaning up!')
     driver.quit()
     sys.exit(0)
 
@@ -58,7 +58,10 @@ def page_has_loaded():
 def parse_cookies(cookies):
     cookie = SimpleCookie()
     cookie.load(cookies)
-    return {key: morsel.value for key, morsel in cookie.items()}
+    cook = []
+    for key, morsel in cookie.items():
+        cook.append({'name': str(key), 'value': str(morsel.value), 'domain': 'knoxss.me'})
+    return cook
 
 def find_hrefs(hrefs):
     global driver
@@ -110,12 +113,13 @@ def main():
             addon = str(a)
         else:
             assert False, "Bad options"
-
+    
     if not url or not cookies or not firefox_binary or not addon: 
         usage()
         sys.exit()
 
-    print("[+] Starting Webdriver...")
+    signal.signal(signal.SIGINT, signal_handler)
+    print("[+] Starting Web driver...")
     
     try:
         profile = FirefoxProfileWithWebExtensionSupport()
@@ -123,19 +127,25 @@ def main():
 
         driver = webdriver.Firefox(firefox_profile=profile,
                                 firefox_binary=firefox_binary)
-        signal.signal(signal.SIGINT, signal_handler)
     except Exception as err:
         sys.stderr.write('[-] ERROR running Webdriver: %s' % str(err))
+        if driver:
+            signal_handler(None, None)
         sys.exit()
 
     print("[+] Loading Cookies")
+
     try:
         driver.get('https://knoxss.me')
-        driver.add_cookie(parse_cookies(cookies))
+        for cookie in parse_cookies(cookies):
+            driver.add_cookie(cookie)
     except Exception as err:
         sys.stderr.write('[-] ERROR loading Cookies, check Internet connection or Cookies format: %s' % str(err))
+        if driver:
+            signal_handler(None, None)
         sys.exit()
 
+    time.sleep(30)
     print("[+] Navigating to {}".format(url))
     driver.get(url)
     driver.execute_script("window.knoxss_status = []; document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status.push(e.detail); e.stopPropagation();}, true);")
@@ -144,7 +154,7 @@ def main():
     web_hrefs = find_hrefs(web_hrefs)
 
     try:
-        while not web_hrefs.empty():
+        while True:
             knoxss_status = driver.execute_script("return window.knoxss_status.pop()")
             if knoxss_status is not None:
                 elapsed_time = 0
@@ -176,6 +186,8 @@ def main():
                 if elapsed_time > time_to_wait:
                     raise RuntimeError('There is no event from KNOXSS. Check Cookies status or adjust timeout. Aborting!')
             if active and knoxss_status is not None:
+                if len(web_hrefs) == 0:
+                    break
                 link = web_hrefs.get()
                 print("[+] Navigating: {}".format(link))
                 driver.get(link)
@@ -188,14 +200,12 @@ def main():
                 print("[+] Remaining: {} minutes, visited/all_urls: {}/{}".format(progress / 60, visited, len(web_hrefs)+len(visited_urls)))
     except RuntimeError as err:
         sys.stderr.write('[-] ERROR spidering: %s' % str(err)) 
-        driver.quit()
-        sys.exit()
+        signal_handler(None, None)
     except Exception as err:
         sys.stderr.write('[-] Uknown ERROR. Proceeding : %s' % str(err))
         pass
     finally:
-        print("[+] Cleaning up")
-        driver.quit()
+        signal_handler(None, None)
 
 if __name__ == '__main__':
     main()
