@@ -55,16 +55,6 @@ def page_has_loaded():
     return page_state == 'complete'
 
 
-def find_urls(driver, hrefs):
-    links = driver.find_elements_by_xpath("//a[@href]")
-    for elem in links:
-        elem_url = elem.get_attribute("href")
-        current_url = urlparse(driver.current_url)
-        if (current_url.netloc in elem_url) and (elem_url not in hrefs) and (elem_url[-4:] not in bad_extensions):
-            print("[+] Found new URL: {}".format(elem.get_attribute("href")))
-            hrefs.append(elem_url)
-    return hrefs
-
 def find_hrefs(hrefs):
     global driver
     global visited_urls
@@ -72,7 +62,7 @@ def find_hrefs(hrefs):
     for elem in links:
         elem_url = elem.get_attribute("href")
         current_url = urlparse(driver.current_url)
-        if (current_url.scheme+"://"+current_url.netloc in elem_url) and (elem_url not in hrefs) and (elem_url[-4:] not in bad_extensions) and (elem_url not in visited_urls):
+        if (current_url.scheme+"://"+current_url.netloc in elem_url) and (elem_url not in hrefs) and (elem_url[-4:] not in bad_extensions) and (elem_url not in dict(visited_urls)):
             print("[+] Found new URL: {}".format(elem.get_attribute("href")))
             hrefs.put(elem.get_attribute("href"))
     return hrefs
@@ -81,13 +71,13 @@ def find_hrefs(hrefs):
 def main():
     global driver
     global visited_urls
-    time_to_wait = 90   #timeout for knoxss event
+    time_to_wait = 90       #timeout for KNOXSS event
     visited = 0         
     knoxss_status = None
     cookies = False
     url = False
-    firefox_binary = '/home/mp/firefox/firefox'
-    addon = False
+    firefox_binary = False  #location of Firefox developer edition
+    addon = False           #location of unzipped KNOXSS add-on
     active = False
     elapsed_time = 0
     visited_urls = []
@@ -186,7 +176,7 @@ def main():
                 link = web_hrefs.get()
                 print("[+] Navigating: {}".format(link))
                 driver.get(link)
-                visited_urls.append(link)
+                visited_urls.append((link, knoxss_status))
                 visited += 1
                 if page_has_loaded():
                     driver.execute_script("window.knoxss_status = []; document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status.push(e.detail);}, false);")
