@@ -4,25 +4,19 @@
 
 https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=pl
 
-2. pip install selenium
+2. pip install selenium --user
 
 3. Download geckodriver
 
 https://github.com/mozilla/geckodriver/releases
 
-4. Download XPI with Knoxss
+4. Download XPI with KNOXSS Pro
 
 http://knoxss.me
 
-5. Edit hardcoded paths in script.
-
 ### Important
-6. You have to have cookies.pkl file with session cookies from knoxss.me:
+6. Login to http://knoxss.me and retrieve session Cookies, pass them to -c argument.
 
-```
-import pickle
-import selenium.webdriver 
+### Example usage:
 
-driver = selenium.webdriver.Firefox()
-driver.get("http://knoxss.me")
-pickle.dump( driver.get_cookies() , open("cookies.pkl","wb"))
+`python automate_knoxss.py -u "https://target" -c "wordpress_logged_in_...=...; wordpress_sec_...=...; sucuri_cloudproxy_uuid_...=...; wordpress_test_cookie=WP+Cookie+check;" -f /home/mp/firefox/firefox -a knoxss`
