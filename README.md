@@ -4,7 +4,7 @@
 
 https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=pl
 
-2. pip install selenium --user
+2. pip install selenium --user # requires Python
 
 3. Download geckodriver
 
