@@ -19,4 +19,4 @@ http://knoxss.me
 
 ### Example usage:
 
-`python automate_knoxss.py -u "https://target" -c "wordpress_logged_in_...=...; wordpress_sec_...=...; sucuri_cloudproxy_uuid_...=...; wordpress_test_cookie=WP+Cookie+check;" -f /home/mp/firefox/firefox -a knoxss`
+`python automate_knoxss.py -u "https://target" -c "wordpress_logged_in_...=...; wordpress_sec_...=...; sucuri_cloudproxy_uuid_...=...; wordpress_test_cookie=WP+Cookie+check;" -f /home/mp/firefox/firefox -a knoxss -t 90`
