@@ -1,23 +1,21 @@
 import json
-import pickle
 import time
 import sys
 import getopt
 import signal
 import os
 import queue
+import mimetypes
 
 from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.firefox.firefox_profile import AddonFormatError, FirefoxProfile
 from http.cookies import SimpleCookie
 
-bad_extensions = ['.svg', '.jpg', '.zip', '.rar', '.gif', '.jpeg', '.png', '.xml']
-
 def usage():
     print("Automation of KNOXSS extension v. 0.1")
     print("Copyright Maciej Piechota @haqpl 2019")
-    print("Usage: automate_knoxss.py -u URL -c COOKIES -f PATH_TO_FIREFOX_BIN -a PATH_TO_ADDON_DIR")
+    print("Usage: automate_knoxss.py -u url -c cookies_str -f firefox_binary -a knoxss_directory -t timeout")
     sys.exit()
 
 def signal_handler(sig, frame):
@@ -25,6 +23,12 @@ def signal_handler(sig, frame):
     print('[+] Cleaning up!')
     driver.quit()
     sys.exit(0)
+
+def get_extensions_for_type(general_type):
+    for ext in mimetypes.types_map:
+        if mimetypes.types_map[ext].split('/')[0] == general_type:
+            yield ext
+
 
 class FirefoxProfileWithWebExtensionSupport(webdriver.FirefoxProfile):
     def _addon_details(self, addon_path):
@@ -64,6 +68,7 @@ def parse_cookies(cookies):
     return cook
 
 def find_hrefs(hrefs):
+    global bad_extensions
     global driver
     global visited_urls
     links = driver.find_elements_by_xpath("//a[@href]")
@@ -79,13 +84,14 @@ def find_hrefs(hrefs):
 def main():
     global driver
     global visited_urls
-    time_to_wait = 90       #timeout for KNOXSS event
+    global bad_extensions
+    time_to_wait = 90       # timeout for KNOXSS event
     visited = 0         
     knoxss_status = None
     cookies = False
     url = False
-    firefox_binary = False  #location of Firefox developer edition
-    addon = False           #location of unzipped KNOXSS add-on
+    firefox_binary = False  # location of Firefox developer edition
+    addon = False           # location of unzipped KNOXSS add-on
     active = False
     elapsed_time = 0
     visited_urls = []
@@ -94,7 +100,7 @@ def main():
         usage()
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hu:c:f:a:", ["help", "url", "cookies", "firefox", "addon"])
+        opts, args = getopt.getopt(sys.argv[1:], "hu:c:f:a:t:", ["help", "url", "cookies", "firefox", "addon", "timeout"])
     except getopt.GetoptError as err:
         print(str(err))
         usage()
@@ -102,7 +108,7 @@ def main():
     for o,a in opts:
         if o in ("-h", "--help"):
             usage()
-            print('Example usage: python automate_knoxss.py -u "http://target" -c cookies.pkl -f /usr/bin/firefox -a knoxss')
+            print('Example usage: python automate_knoxss.py -u "http://target" -c "cookies.pkl" -f /usr/bin/firefox -a ./knoxss -t 90')
         elif o in ("-u", "--url"):
             url = str(a)
         elif o in ("-c", "--cookies"):
@@ -111,22 +117,28 @@ def main():
             firefox_binary = str(a)
         elif o in ("-a", "--addon"):
             addon = str(a)
+        elif o in ("-t", "--timeout"):
+            time_to_wait = int(a)
         else:
             assert False, "Bad options"
     
     if not url or not cookies or not firefox_binary or not addon: 
         usage()
         sys.exit()
+    
+    bad_extensions = list(get_extensions_for_type('image')) + \
+                     list(get_extensions_for_type('application')) + \
+                     list(get_extensions_for_type('audio')) + \
+                     list(get_extensions_for_type('video'))
 
     signal.signal(signal.SIGINT, signal_handler)
     print("[+] Starting Web driver...")
-    
     try:
         profile = FirefoxProfileWithWebExtensionSupport()
         profile.add_extension(addon)
 
         driver = webdriver.Firefox(firefox_profile=profile,
-                                firefox_binary=firefox_binary)
+                                   firefox_binary=firefox_binary)
     except Exception as err:
         sys.stderr.write('[-] ERROR running Webdriver: %s' % str(err))
         if driver:
@@ -145,18 +157,20 @@ def main():
             signal_handler(None, None)
         sys.exit()
 
-    time.sleep(30)
     print("[+] Navigating to {}".format(url))
     driver.get(url)
-    driver.execute_script("window.knoxss_status = []; document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status.push(e.detail); e.stopPropagation();}, true);")
+    driver.execute_script("document.addEventListener(\"knoxss_status\", \
+                           function(e){window.knoxss_status = e.detail; \
+                           e.stopPropagation();}, true);")
     
     web_hrefs = CheckableQueue()
     web_hrefs = find_hrefs(web_hrefs)
 
     try:
         while True:
-            knoxss_status = driver.execute_script("return window.knoxss_status.pop()")
+            knoxss_status = driver.execute_script("return window.knoxss_status")
             if knoxss_status is not None:
+                driver.execute_script("window.knoxss_status = null")
                 elapsed_time = 0
                 if "Nothing found" in str(knoxss_status) :
                     print('[+] Nothing found: {}'.format(knoxss_status))
@@ -193,9 +207,10 @@ def main():
                 driver.get(link)
                 visited_urls.append((link, knoxss_status))
                 visited += 1
-                if page_has_loaded():
-                    driver.execute_script("window.knoxss_status = []; document.addEventListener(\"knoxss_status\", function(e){window.knoxss_status.push(e.detail);}, false);")
-                    web_hrefs = find_hrefs(web_hrefs)
+                driver.execute_script("document.addEventListener(\"knoxss_status\", \
+                                       function(e){window.knoxss_status = e.detail; \
+                                       e.stopPropagation();}, false);")
+                web_hrefs = find_hrefs(web_hrefs)
                 progress = len(web_hrefs)*spent_time
                 print("[+] Remaining: {} minutes, visited/all_urls: {}/{}".format(progress / 60, visited, len(web_hrefs)+len(visited_urls)))
     except RuntimeError as err:
