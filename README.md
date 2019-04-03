@@ -4,7 +4,7 @@
 
 https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=pl
 
-2. pip install selenium --user # requires Python
+2. `pip install selenium --user` # requires Python
 
 3. Download geckodriver
 
@@ -19,4 +19,4 @@ http://knoxss.me
 
 ### Example usage:
 
-`python automate_knoxss.py -u "https://target" -c "wordpress_logged_in_...=...; wordpress_sec_...=...; sucuri_cloudproxy_uuid_...=...; wordpress_test_cookie=WP+Cookie+check;" -f /home/mp/firefox/firefox -a knoxss -t 90`
+`python3 automate_knoxss.py -u "https://target" -c "wordpress_logged_in_...=...; wordpress_sec_...=...; sucuri_cloudproxy_uuid_...=...; wordpress_test_cookie=WP+Cookie+check;" -f /home/mp/firefox/firefox -a knoxss -t 90`
